@@ -18,13 +18,17 @@
 set -e
 
 COSYVOICE_DIR="/home/mind/model/cosyvoice_train/CosyVoice"
-DATA_DIR="/home/mind/model/cosyvoice_train/data/sft_test"
+DATA_DIR="${1:-/home/mind/model/cosyvoice_train/data/sft_test}"
+MAX_EPOCH="${2:-2}"
 PRETRAINED="${COSYVOICE_DIR}/pretrained_models/CosyVoice2-0.5B"
 EXP_DIR="/home/mind/model/cosyvoice_train/exp/cosyvoice2/flow"
 
 echo "============================================================"
 echo "  Phase 5: Full SFT Fine-tune Flow"
 echo "============================================================"
+echo ""
+echo "  Data directory: $DATA_DIR"
+echo "  Max epochs: $MAX_EPOCH"
 echo ""
 
 # --- Verify prerequisites ---
@@ -89,6 +93,12 @@ echo "  ASCEND_RT_VISIBLE_DEVICES=$ASCEND_RT_VISIBLE_DEVICES"
 mkdir -p "$EXP_DIR"
 mkdir -p "/home/mind/model/cosyvoice_train/exp/cosyvoice2/tensorboard/flow"
 
+# --- Update max_epoch in yaml ---
+echo ""
+echo "Setting max_epoch to $MAX_EPOCH in cosyvoice2.yaml..."
+sed -i "s/max_epoch: [0-9]*/max_epoch: $MAX_EPOCH/" examples/libritts/cosyvoice2/conf/cosyvoice2.yaml
+grep "max_epoch" examples/libritts/cosyvoice2/conf/cosyvoice2.yaml | head -1
+
 # --- Launch training ---
 echo ""
 echo "============================================================"
@@ -99,14 +109,12 @@ echo "Configuration:"
 echo "  Model: flow (CausalMaskedDiffWithXvec)"
 echo "  Checkpoint: $PRETRAINED/flow.pt"
 echo "  Config: examples/libritts/cosyvoice2/conf/cosyvoice2.yaml"
-echo "  Max epochs: 2"
+echo "  Max epochs: $MAX_EPOCH"
 echo "  Learning rate: 1e-5"
 echo "  Scheduler: constantlr"
 echo "  Backend: hccl (Ascend NPU)"
 echo "  GPUs: 1"
 echo "  Output: $EXP_DIR"
-echo ""
-echo "This will take a few minutes for 2 epochs with 5 samples..."
 echo ""
 
 torchrun --nnodes=1 --nproc_per_node=1 \

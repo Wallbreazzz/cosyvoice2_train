@@ -20,30 +20,25 @@
 set -e
 
 COSYVOICE_DIR="/home/mind/model/cosyvoice_train/CosyVoice"
-DATA_DIR="/home/mind/model/cosyvoice_train/data/sft_test"
+DATA_DIR="${1:-/home/mind/model/cosyvoice_train/data/sft_test}"
 PRETRAINED="${COSYVOICE_DIR}/pretrained_models/CosyVoice2-0.5B"
 
 echo "============================================================"
 echo "  Phase 3: Data Preparation"
 echo "============================================================"
 echo ""
+echo "  Data directory: $DATA_DIR"
+echo ""
 
 # --- Verify prerequisites ---
 echo "Checking prerequisites..."
 
-if [ ! -f "$DATA_DIR/test.wav" ]; then
-    echo "ERROR: $DATA_DIR/test.wav not found"
-    echo "Please run phase2_prepare_dataset.sh and place test.wav first"
-    exit 1
-fi
-echo "  OK: test.wav exists ($(ls -lh $DATA_DIR/test.wav | awk '{print $5}'))"
-
 if [ ! -f "$DATA_DIR/wav.scp" ]; then
     echo "ERROR: $DATA_DIR/wav.scp not found"
-    echo "Please run phase2_prepare_dataset.sh first"
+    echo "Please prepare wav.scp, text, utt2spk, spk2utt first"
     exit 1
 fi
-echo "  OK: wav.scp exists"
+echo "  OK: wav.scp exists ($(wc -l < $DATA_DIR/wav.scp) lines)"
 
 if [ ! -f "$PRETRAINED/campplus.onnx" ]; then
     echo "ERROR: $PRETRAINED/campplus.onnx not found"
