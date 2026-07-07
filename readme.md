@@ -170,21 +170,43 @@ bash /home/mind/model/cosyvoice_train/scripts/phase8_generate_om.sh
 在**推理容器A**中执行：
 
 ```bash
+# 默认使用 SSB0671 speaker，端口 50000
 bash /home/mind/model/cosyvoice_train/scripts/phase9_test_inference.sh
+
+# 或指定 speaker 名称和端口
+bash /home/mind/model/cosyvoice_train/scripts/phase9_test_inference.sh SSB0671 50000
 ```
 
 脚本自动完成：
 1. 设置环境变量（PYTHONPATH、LD_LIBRARY_PATH等）
 2. 修复modelscope兼容性（首次运行）
 3. 验证模型文件和OM文件
-4. 运行 `infer.py --stream`（load_om=True, fp16=True）
+4. 运行 `deploy.sh` 生成 server.py/client.py（首次运行）
+5. 启动 TTS 服务（使用 `run_server.sh`，后台运行）
+6. 等待服务就绪
+7. 测试微调后的 speaker（SSB0671）
+8. 测试默认 speaker（中文女）用于对比
 
-成功标志：
+输出文件：
 ```
-[INFO] load model .../flow_linux_aarch64.om success
-[INFO] load model .../flow_static.om success
-[INFO] load model .../speech_linux_aarch64.om success
-[INFO] yield speech len X.XX, rtf X.XX
+/home/mind/model/cosyvoice_train/exp/cosyvoice2/test_output/
+├── sft_SSB0671.wav      # 微调后的音色
+├── sft_default.wav      # 默认中文女音色（对比用）
+└── server.log           # 服务日志
+```
+
+服务会持续运行，可手动测试：
+```bash
+curl -X POST http://127.0.0.1:50000/inference_sft \
+  -F 'tts_text=你好世界' \
+  -F 'spk_id=SSB0671' \
+  -F 'stream=true' \
+  --output test.wav
+```
+
+停止服务：
+```bash
+kill $(lsof -ti:50000)
 ```
 
 ---
