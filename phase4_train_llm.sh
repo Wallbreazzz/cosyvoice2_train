@@ -85,7 +85,7 @@ echo "  Created data/dev.data.list"
 echo ""
 echo "Setting environment variables..."
 export PYTHONPATH=cosyvoice:third_party/Matcha-TTS:$PYTHONPATH
-export ASCEND_RT_VISIBLE_DEVICES=0
+export ASCEND_RT_VISIBLE_DEVICES=${ASCEND_RT_VISIBLE_DEVICES:-0}
 echo "  PYTHONPATH=$PYTHONPATH"
 echo "  ASCEND_RT_VISIBLE_DEVICES=$ASCEND_RT_VISIBLE_DEVICES"
 
