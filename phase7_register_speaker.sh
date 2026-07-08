@@ -99,7 +99,7 @@ for wav_path in audio_files:
     embeddings.append(emb)
     print(f"  Extracted: {wav_path} (dim={len(emb)})")
 
-avg_embedding = torch.tensor(embeddings).mean(dim=0)
+avg_embedding = torch.tensor(embeddings).mean(dim=0).unsqueeze(0)  # shape: [1, 192] for F.normalize(dim=1)
 print(f"  Averaged {len(embeddings)} embeddings -> shape {avg_embedding.shape}")
 
 print("")
