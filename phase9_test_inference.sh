@@ -15,14 +15,6 @@
 # Default:
 #   speaker_name = SSB0671
 #   port = 50000
-#
-# This script:
-#   1. Sets up environment
-#   2. Runs deploy.sh to generate server.py/client.py if needed
-#   3. Starts TTS server in background using run_server.sh
-#   4. Waits for server to be ready
-#   5. Tests inference with the registered speaker
-#   6. Tests inference with default speaker (中文女) for comparison
 # =============================================================================
 
 set -e
@@ -107,14 +99,17 @@ else
     echo "  SKIP: server.py already exists"
 fi
 
-# Install FastAPI dependencies
+if [ ! -f "$COSYVOICE_DIR/client.py" ]; then
+    echo "ERROR: client.py not found. Run deploy.sh first."
+    exit 1
+fi
+
 pip install fastapi uvicorn python-multipart requests 2>/dev/null | tail -1 || true
 echo ""
 
 # --- Step 5: Kill existing server if running ---
 echo "[5/6] Starting TTS server..."
 
-# Kill any existing server on the same port
 EXISTING_PID=$(lsof -ti:$PORT 2>/dev/null || true)
 if [ -n "$EXISTING_PID" ]; then
     echo "  Killing existing process on port $PORT (PID: $EXISTING_PID)"
@@ -124,7 +119,6 @@ fi
 
 mkdir -p "$OUTPUT_DIR"
 
-# Start server in background
 SERVER_LOG="$OUTPUT_DIR/server.log"
 echo "  Starting server (log: $SERVER_LOG)..."
 
@@ -163,7 +157,7 @@ curl -s "http://127.0.0.1:$PORT/list_spks" | python3 -m json.tool 2>/dev/null ||
   curl -s "http://127.0.0.1:$PORT/list_spks"
 echo ""
 
-# --- Step 6: Test inference ---
+# --- Step 6: Test inference using client.py ---
 echo "[6/6] Testing inference..."
 echo ""
 
@@ -171,12 +165,10 @@ TEST_TEXT="收到好友从远方寄来的生日礼物，那份意外的惊喜和
 
 # Test 1: Fine-tuned speaker
 echo "  Test 1: SFT inference with '$SPEAKER_NAME' (fine-tuned)..."
-curl -s -X POST "http://127.0.0.1:$PORT/inference_sft" \
-  -F "tts_text=$TEST_TEXT" \
-  -F "spk_id=$SPEAKER_NAME" \
-  -F "stream=true" \
-  -F "speed=1.0" \
-  -F "seed=9" \
+python3 client.py \
+  --mode sft \
+  --tts_text "$TEST_TEXT" \
+  --spk_id "$SPEAKER_NAME" \
   --output "$OUTPUT_DIR/sft_${SPEAKER_NAME}.wav"
 
 if [ -f "$OUTPUT_DIR/sft_${SPEAKER_NAME}.wav" ]; then
@@ -189,12 +181,10 @@ echo ""
 
 # Test 2: Default speaker (for comparison)
 echo "  Test 2: SFT inference with '中文女' (default, for comparison)..."
-curl -s -X POST "http://127.0.0.1:$PORT/inference_sft" \
-  -F "tts_text=$TEST_TEXT" \
-  -F "spk_id=中文女" \
-  -F "stream=true" \
-  -F "speed=1.0" \
-  -F "seed=9" \
+python3 client.py \
+  --mode sft \
+  --tts_text "$TEST_TEXT" \
+  --spk_id "中文女" \
   --output "$OUTPUT_DIR/sft_default.wav"
 
 if [ -f "$OUTPUT_DIR/sft_default.wav" ]; then
@@ -219,11 +209,7 @@ echo ""
 echo "Server is still running on port $PORT (PID: $SERVER_PID)"
 echo ""
 echo "To test manually:"
-echo "  curl -X POST http://127.0.0.1:$PORT/inference_sft \\"
-echo "    -F 'tts_text=你好世界' \\"
-echo "    -F 'spk_id=$SPEAKER_NAME' \\"
-echo "    -F 'stream=true' \\"
-echo "    --output test.wav"
+echo "  python3 client.py --mode sft --tts_text '你好世界' --spk_id '$SPEAKER_NAME' --output test.wav"
 echo ""
 echo "To stop server:"
 echo "  kill $SERVER_PID"
