@@ -146,6 +146,34 @@ bash phase3_data_prep.sh [data_dir]
 bash /home/mind/model/cosyvoice_train/scripts/phase3_data_prep.sh
 ```
 
+### AISHELL3 数据集示例
+
+如果你使用 AISHELL3 数据集（例如 SSB0671 speaker），需要先准备标准 CosyVoice 格式的数据：
+
+```bash
+# 1. 创建数据目录
+mkdir -p /home/mind/model/cosyvoice_train/data/aishell3_ssb0671
+
+# 2. 准备 wav.scp（列出所有音频文件）
+find /home/mind/model/cosyvoice_train/aishell3/train/wav/SSB0671 -name "*.wav" | \
+  awk -F'/' '{print $NF, $0}' | sed 's/\.wav//' > \
+  /home/mind/model/cosyvoice_train/data/aishell3_ssb0671/wav.scp
+
+# 3. 准备 text（从 AISHELL3 的 transcript 提取）
+grep "SSB0671" /home/mind/model/cosyvoice_train/aishell3/train/transcript/aishell3_train.txt | \
+  awk '{print $1, $2}' > /home/mind/model/cosyvoice_train/data/aishell3_ssb0671/text
+
+# 4. 准备 utt2spk 和 spk2utt
+awk '{print $1, "SSB0671"}' /home/mind/model/cosyvoice_train/data/aishell3_ssb0671/text > \
+  /home/mind/model/cosyvoice_train/data/aishell3_ssb0671/utt2spk
+echo "SSB0671 $(awk '{print $1}' /home/mind/model/cosyvoice_train/data/aishell3_ssb0671/text | tr '\n' ' ')" > \
+  /home/mind/model/cosyvoice_train/data/aishell3_ssb0671/spk2utt
+
+# 5. 运行数据预处理
+bash /home/mind/model/cosyvoice_train/scripts/phase3_data_prep.sh \
+  /home/mind/model/cosyvoice_train/data/aishell3_ssb0671
+```
+
 ---
 
 ## Phase 4: LLM LoRA微调
@@ -175,6 +203,23 @@ bash phase4_train_llm.sh [data_dir] [max_epoch] [lora_rank]
 bash /home/mind/model/cosyvoice_train/scripts/phase4_train_llm.sh
 ```
 
+### AISHELL3 数据集示例
+
+如果你使用 AISHELL3 数据集（例如 SSB0671 speaker）：
+
+```bash
+# 使用 AISHELL3 SSB0671 数据，训练 100 epoch，LoRA rank=16
+bash /home/mind/model/cosyvoice_train/scripts/phase4_train_llm.sh \
+  /home/mind/model/cosyvoice_train/data/aishell3_ssb0671 \
+  100 \
+  16
+```
+
+**注意**：
+- AISHELL3 单个 speaker 约有 300-500 条音频，100 epoch 约需 8-12 小时
+- 建议先用 20 epoch 快速验证，确认 loss 下降后再增加到 100 epoch
+- LoRA rank 必须与 phase1 中指定的值一致
+
 ---
 
 ## Phase 5: Flow全量SFT
@@ -202,6 +247,22 @@ bash phase5_train_flow.sh [data_dir] [max_epoch]
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase5_train_flow.sh
 ```
+
+### AISHELL3 数据集示例
+
+如果你使用 AISHELL3 数据集（例如 SSB0671 speaker）：
+
+```bash
+# 使用 AISHELL3 SSB0671 数据，训练 50 epoch
+bash /home/mind/model/cosyvoice_train/scripts/phase5_train_flow.sh \
+  /home/mind/model/cosyvoice_train/data/aishell3_ssb0671 \
+  50
+```
+
+**注意**：
+- Flow 模型是全量 SFT，训练速度比 LLM LoRA 快
+- AISHELL3 单个 speaker 50 epoch 约需 3-5 小时
+- Flow 模型通常在 20-30 epoch 就收敛，50 epoch 足够
 
 ---
 
@@ -285,6 +346,23 @@ bash /home/mind/model/cosyvoice_train/scripts/phase7_register_speaker.sh \
 ```
 
 将目标speaker的声纹embedding写入 `spk2info.pt`，使SFT推理模式可用。
+
+### AISHELL3 数据集示例
+
+如果你使用 AISHELL3 数据集（例如 SSB0671 speaker）：
+
+```bash
+# 从 AISHELL3 SSB0671 的音频目录中随机采样 10 条，注册为 "SSB0671"
+bash /home/mind/model/cosyvoice_train/scripts/phase7_register_speaker.sh \
+  "SSB0671" \
+  /home/mind/model/cosyvoice_train/aishell3/train/wav/SSB0671 \
+  -n 10
+```
+
+**注意**：
+- AISHELL3 单个 speaker 约有 300-500 条音频
+- 建议采样 10-20 条计算平均 embedding，效果更稳定
+- 注册的 speaker 名称将在 Phase 9 推理时使用
 
 ---
 
