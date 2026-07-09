@@ -13,7 +13,7 @@
 
 **本流程需要离线环境执行**。所有外网依赖（Python包、代码仓库、预训练模型）已预先打包到镜像中。
 
-镜像构建方法详见 `环境准备（需外网）.md`。
+镜像构建方法详见 `环境准备.md`。
 
 ### SFT微调原理说明
 
@@ -57,22 +57,30 @@ inference_sft(text, "speaker_name")
 
 ## Phase 0: 创建训练容器
 
-基于cosyvoice2推理镜像创建容器（镜像构建方法见 `环境准备（需外网）.md`）
+基于cosyvoice2推理镜像创建容器（镜像构建方法见 `环境准备.md`）
 
 ---
 
 ## Phase 1: 代码补丁
 
-### 1.1 上传脚本到服务器
+### 前提条件
+- xunyi training recipe files 必须已经存在（预烘焙在镜像中）
+- CosyVoice 代码仓库已克隆到 `/home/mind/model/cosyvoice_train/CosyVoice`
 
+### 参数说明
 ```bash
-mkdir -p /home/mind/model/cosyvoice_train/scripts
+bash phase1_patch_code.sh [lora_rank]
 ```
 
-上传所有 `phase*.sh` 脚本到 `/home/mind/model/cosyvoice_train/scripts/`。
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `lora_rank` | 8 | LoRA 的秩（rank），控制可训练参数量 |
 
-### 1.2 执行
+### 建议参数
+- **验证流程**：`bash phase1_patch_code.sh`（默认 r=8，训练 0.22% 参数）
+- **正式微调**：`bash phase1_patch_code.sh 16` 或 `bash phase1_patch_code.sh 32`（训练更多参数，效果更好）
 
+### 执行
 ```bash
 cd /home/mind/model/cosyvoice_train/CosyVoice
 bash /home/mind/model/cosyvoice_train/scripts/phase1_patch_code.sh
@@ -84,6 +92,20 @@ bash /home/mind/model/cosyvoice_train/scripts/phase1_patch_code.sh
 
 ## Phase 2: 准备测试数据集
 
+### 前提条件
+- 无特殊前提
+
+### 参数说明
+```bash
+bash phase2_prepare_dataset.sh
+```
+
+无参数。
+
+### 建议参数
+- 直接使用默认参数
+
+### 执行
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase2_prepare_dataset.sh
 ```
@@ -100,6 +122,26 @@ cp <你的音频文件> /home/mind/model/cosyvoice_train/data/sft_test/test.wav
 
 ## Phase 3: 数据预处理
 
+### 前提条件
+- Phase 1（代码补丁）已完成
+- Phase 2（数据集准备）已完成
+- test.wav 已放置到 `data/sft_test/`
+- 预训练模型已下载到 `pretrained_models/CosyVoice2-0.5B/`
+
+### 参数说明
+```bash
+bash phase3_data_prep.sh [data_dir]
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `data_dir` | `/home/mind/model/cosyvoice_train/data/sft_test` | 数据目录路径 |
+
+### 建议参数
+- **验证流程**：`bash phase3_data_prep.sh`（使用默认 sft_test 目录）
+- **正式微调**：`bash phase3_data_prep.sh /path/to/your/data`（使用自定义数据目录）
+
+### 执行
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase3_data_prep.sh
 ```
@@ -108,6 +150,27 @@ bash /home/mind/model/cosyvoice_train/scripts/phase3_data_prep.sh
 
 ## Phase 4: LLM LoRA微调
 
+### 前提条件
+- Phase 1（代码补丁）已完成
+- Phase 3（数据预处理）已完成
+- 预训练模型已下载到 `pretrained_models/CosyVoice2-0.5B/`
+
+### 参数说明
+```bash
+bash phase4_train_llm.sh [data_dir] [max_epoch] [lora_rank]
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `data_dir` | `/home/mind/model/cosyvoice_train/data/sft_test` | 数据目录路径 |
+| `max_epoch` | 2 | 最大训练轮数 |
+| `lora_rank` | 8 | LoRA 的秩（rank），必须与 phase1 一致 |
+
+### 建议参数
+- **验证流程**：`bash phase4_train_llm.sh`（默认 data_dir=sft_test, epoch=2, r=8）
+- **正式微调**：`bash phase4_train_llm.sh /path/to/data 50 16`（自定义数据，50 epoch，r=16）
+
+### 执行
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase4_train_llm.sh
 ```
@@ -116,6 +179,26 @@ bash /home/mind/model/cosyvoice_train/scripts/phase4_train_llm.sh
 
 ## Phase 5: Flow全量SFT
 
+### 前提条件
+- Phase 1（代码补丁）已完成
+- Phase 3（数据预处理）已完成
+- 预训练模型已下载到 `pretrained_models/CosyVoice2-0.5B/`
+
+### 参数说明
+```bash
+bash phase5_train_flow.sh [data_dir] [max_epoch]
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `data_dir` | `/home/mind/model/cosyvoice_train/data/sft_test` | 数据目录路径 |
+| `max_epoch` | 2 | 最大训练轮数 |
+
+### 建议参数
+- **验证流程**：`bash phase5_train_flow.sh`（默认 data_dir=sft_test, epoch=2）
+- **正式微调**：`bash phase5_train_flow.sh /path/to/data 50`（自定义数据，50 epoch）
+
+### 执行
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase5_train_flow.sh
 ```
@@ -124,23 +207,81 @@ bash /home/mind/model/cosyvoice_train/scripts/phase5_train_flow.sh
 
 ## Phase 6: 权重合并和部署
 
+### 前提条件
+- Phase 4（LLM训练）已完成
+- Phase 5（Flow训练）已完成
+
+### 参数说明
+```bash
+bash phase6_deploy_weights.sh [lora_rank]
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `lora_rank` | 8 | LoRA 的秩（rank），必须与 phase1 和 phase4 一致 |
+
+### 建议参数
+- **验证流程**：`bash phase6_deploy_weights.sh`（默认 r=8）
+- **正式微调**：`bash phase6_deploy_weights.sh 16`（与 phase1 和 phase4 保持一致）
+
+### 执行
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase6_deploy_weights.sh
 ```
 
-完成：合并LoRA权重 → 清理Flow checkpoint → 备份原始权重 → 部署到推理目录。
+完成：合并LoRA权重 → 清理Flow checkpoint → 备份原始权重和OM文件 → 部署到推理目录。
 
 ---
 
 ## Phase 7: 注册新speaker
 
+### 前提条件
+- Phase 6（权重部署）已完成
+- 有目标 speaker 的音频文件（建议 10 条以上）
+
+### 参数说明
+```bash
+# 目录模式（推荐）
+bash phase7_register_speaker.sh [speaker_name] [wav_dir] [-n num_samples]
+
+# 文件模式
+bash phase7_register_speaker.sh [speaker_name] [wav_file1] [wav_file2] ...
+
+# 默认模式
+bash phase7_register_speaker.sh
+```
+
+**目录模式参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `speaker_name` | `spk001` | 注册的 speaker 名称 |
+| `wav_dir` | `/home/mind/model/cosyvoice_train/data/sft_test` | 音频文件目录 |
+| `-n num_samples` | 10 | 随机采样的音频数量 |
+
+**文件模式参数**：
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `speaker_name` | `spk001` | 注册的 speaker 名称 |
+| `wav_file1, wav_file2, ...` | - | 音频文件路径列表 |
+
+### 建议参数
+- **验证流程**：`bash phase7_register_speaker.sh`（使用默认 test.wav）
+- **正式微调**：`bash phase7_register_speaker.sh "金牌客服" /path/to/wav_dir -n 10`（目录模式，随机采样 10 条）
+
+### 执行
 ```bash
 # 默认模式：使用 Phase 2 的 test.wav，注册为 "spk001"
 bash /home/mind/model/cosyvoice_train/scripts/phase7_register_speaker.sh
 
-# 自定义模式：指定speaker名称和音频文件
+# 目录模式（推荐）：从目录中随机采样 10 条音频
 bash /home/mind/model/cosyvoice_train/scripts/phase7_register_speaker.sh \
-  "金牌客服" /path/to/ref1.wav /path/to/ref2.wav
+  "金牌客服" /path/to/wav_dir -n 10
+
+# 文件模式：手动指定音频文件
+bash /home/mind/model/cosyvoice_train/scripts/phase7_register_speaker.sh \
+  "金牌客服" /path/to/ref1.wav /path/to/ref2.wav /path/to/ref3.wav
 ```
 
 将目标speaker的声纹embedding写入 `spk2info.pt`，使SFT推理模式可用。
@@ -149,6 +290,20 @@ bash /home/mind/model/cosyvoice_train/scripts/phase7_register_speaker.sh \
 
 ## Phase 8: 生成OM文件
 
+### 前提条件
+- Phase 6（权重部署）已完成
+
+### 参数说明
+```bash
+bash phase8_generate_om.sh
+```
+
+无参数。
+
+### 建议参数
+- 直接使用默认参数
+
+### 执行
 ```bash
 bash /home/mind/model/cosyvoice_train/scripts/phase8_generate_om.sh
 ```
@@ -166,6 +321,26 @@ bash /home/mind/model/cosyvoice_train/scripts/phase8_generate_om.sh
 ---
 
 ## Phase 9: 推理测试
+
+### 前提条件
+- Phase 7（注册speaker）已完成
+- Phase 8（生成OM文件）已完成
+
+### 参数说明
+```bash
+bash phase9_test_inference.sh [speaker_name] [port]
+```
+
+| 参数 | 默认值 | 说明 |
+|------|--------|------|
+| `speaker_name` | `SSB0671` | 要测试的 speaker 名称 |
+| `port` | 50000 | TTS 服务端口 |
+
+### 建议参数
+- **验证流程**：`bash phase9_test_inference.sh`（默认 speaker=SSB0671, port=50000）
+- **自定义测试**：`bash phase9_test_inference.sh "金牌客服" 50001`（自定义 speaker 和端口）
+
+### 执行
 
 在**推理容器A**中执行：
 
@@ -217,6 +392,9 @@ kill $(lsof -ti:50000)
 INFERENCE_DIR=/home/mind/model/weight/CosyVoice2-0.5B
 cp "$INFERENCE_DIR/backup_original/llm.pt" "$INFERENCE_DIR/llm.pt"
 cp "$INFERENCE_DIR/backup_original/flow.pt" "$INFERENCE_DIR/flow.pt"
+cp "$INFERENCE_DIR/backup_original/flow_linux_aarch64.om" "$INFERENCE_DIR/flow_linux_aarch64.om"
+cp "$INFERENCE_DIR/backup_original/flow_static.om" "$INFERENCE_DIR/flow_static.om"
+cp "$INFERENCE_DIR/backup_original/speech_linux_aarch64.om" "$INFERENCE_DIR/speech_linux_aarch64.om"
 ```
 
 ---
@@ -225,15 +403,15 @@ cp "$INFERENCE_DIR/backup_original/flow.pt" "$INFERENCE_DIR/flow.pt"
 
 ```
 Phase 0:  创建容器（基于cosyvoice2_finetune:v1.0镜像）
-Phase 1:  bash phase1_patch_code.sh
+Phase 1:  bash phase1_patch_code.sh [lora_rank]
 Phase 2:  bash phase2_prepare_dataset.sh → 放test.wav
-Phase 3:  bash phase3_data_prep.sh
-Phase 4:  bash phase4_train_llm.sh
-Phase 5:  bash phase5_train_flow.sh
-Phase 6:  bash phase6_deploy_weights.sh
-Phase 7:  bash phase7_register_speaker.sh
+Phase 3:  bash phase3_data_prep.sh [data_dir]
+Phase 4:  bash phase4_train_llm.sh [data_dir] [max_epoch] [lora_rank]
+Phase 5:  bash phase5_train_flow.sh [data_dir] [max_epoch]
+Phase 6:  bash phase6_deploy_weights.sh [lora_rank]
+Phase 7:  bash phase7_register_speaker.sh [speaker_name] [wav_dir] [-n num_samples]
 Phase 8:  bash phase8_generate_om.sh
-Phase 9:  bash phase9_test_inference.sh（推理容器A）
+Phase 9:  bash phase9_test_inference.sh [speaker_name] [port]（推理容器A）
 ```
 
 ---
