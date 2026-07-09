@@ -4,11 +4,18 @@
 #
 # Run from: 训练容器B (/home/mind/model/cosyvoice_train/CosyVoice)
 #
+# Usage:
+#   bash phase6_deploy_weights.sh [lora_rank]
+#
+# Examples:
+#   bash phase6_deploy_weights.sh        # Default: r=8
+#   bash phase6_deploy_weights.sh 16     # Use r=16
+#
 # This script:
 #   1. Verifies training outputs (LLM + Flow checkpoints)
 #   2. Merges LoRA weights into base Qwen2 model
 #   3. Cleans Flow checkpoint (removes epoch/step keys)
-#   4. Backs up original weights
+#   4. Backs up original weights and OM files
 #   5. Deploys fine-tuned llm.pt and flow.pt
 # =============================================================================
 
@@ -18,10 +25,13 @@ TRAIN_DIR="/home/mind/model/cosyvoice_train"
 INFERENCE_DIR="/home/mind/model/weight/CosyVoice2-0.5B"
 COSYVOICE_DIR="${TRAIN_DIR}/CosyVoice"
 PRETRAINED="${COSYVOICE_DIR}/pretrained_models/CosyVoice2-0.5B"
+LORA_RANK="${1:-8}"
 
 echo "============================================================"
 echo "  Phase 6: Merge LoRA + Deploy Weights"
 echo "============================================================"
+echo ""
+echo "  LoRA rank: r=$LORA_RANK"
 echo ""
 
 # --- Step 1: Verify training outputs ---
@@ -63,7 +73,7 @@ qwen2 = Qwen2ForCausalLM.from_pretrained(pretrained_path)
 
 print("  Creating LoRA config (same as training)...")
 lora_config = LoraConfig(
-    r=8, lora_alpha=16,
+    r=$LORA_RANK, lora_alpha=16,
     target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
     lora_dropout=0.05, bias="none", task_type="CAUSAL_LM"
 )
@@ -144,8 +154,8 @@ if [ ! -f "$FLOW_CLEAN" ]; then
 fi
 echo ""
 
-# --- Step 4: Backup original weights ---
-echo "[4/5] Backing up original weights..."
+# --- Step 4: Backup original weights and OM files ---
+echo "[4/5] Backing up original weights and OM files..."
 
 BACKUP_DIR="${INFERENCE_DIR}/backup_original"
 mkdir -p "$BACKUP_DIR"
@@ -162,6 +172,27 @@ if [ -f "${INFERENCE_DIR}/flow.pt" ] && [ ! -f "${BACKUP_DIR}/flow.pt" ]; then
     echo "  Backed up: flow.pt"
 else
     echo "  SKIP: flow.pt already backed up or not found"
+fi
+
+if [ -f "${INFERENCE_DIR}/flow_linux_aarch64.om" ] && [ ! -f "${BACKUP_DIR}/flow_linux_aarch64.om" ]; then
+    cp "${INFERENCE_DIR}/flow_linux_aarch64.om" "${BACKUP_DIR}/flow_linux_aarch64.om"
+    echo "  Backed up: flow_linux_aarch64.om"
+else
+    echo "  SKIP: flow_linux_aarch64.om already backed up or not found"
+fi
+
+if [ -f "${INFERENCE_DIR}/flow_static.om" ] && [ ! -f "${BACKUP_DIR}/flow_static.om" ]; then
+    cp "${INFERENCE_DIR}/flow_static.om" "${BACKUP_DIR}/flow_static.om"
+    echo "  Backed up: flow_static.om"
+else
+    echo "  SKIP: flow_static.om already backed up or not found"
+fi
+
+if [ -f "${INFERENCE_DIR}/speech_linux_aarch64.om" ] && [ ! -f "${BACKUP_DIR}/speech_linux_aarch64.om" ]; then
+    cp "${INFERENCE_DIR}/speech_linux_aarch64.om" "${BACKUP_DIR}/speech_linux_aarch64.om"
+    echo "  Backed up: speech_linux_aarch64.om"
+else
+    echo "  SKIP: speech_linux_aarch64.om already backed up or not found"
 fi
 echo ""
 

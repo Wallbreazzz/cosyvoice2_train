@@ -14,16 +14,27 @@
 #   6. Patches train_utils.py (deepspeed optional + prefetch conditional)
 #   7. Patches processor.py (token_mel_ratio)
 #
+# Usage:
+#   bash phase1_patch_code.sh [lora_rank]
+#
+# Examples:
+#   bash phase1_patch_code.sh        # Default: r=8
+#   bash phase1_patch_code.sh 16     # Use r=16
+#   bash phase1_patch_code.sh 32     # Use r=32
+#
 # Prerequisites: xunyi training recipe files must already exist (pre-baked in image)
 # =============================================================================
 
 set -e
 
 COSYVOICE_DIR="/home/mind/model/cosyvoice_train/CosyVoice"
+LORA_RANK="${1:-8}"
 
 echo "============================================================"
 echo "  Phase 1: Complete Code Patches (7 files)"
 echo "============================================================"
+echo ""
+echo "  LoRA rank: r=$LORA_RANK"
 echo ""
 
 if [ ! -f "$COSYVOICE_DIR/cosyvoice/bin/train.py" ]; then
@@ -141,7 +152,7 @@ new_wrap = """    # LoRA injection for LLM model
         try:
             from peft import LoraConfig, get_peft_model
             lora_config = LoraConfig(
-                r=8,
+                r=$LORA_RANK,
                 lora_alpha=16,
                 target_modules=["q_proj", "k_proj", "v_proj", "o_proj"],
                 lora_dropout=0.05,

@@ -4,6 +4,14 @@
 #
 # Run from: /home/mind/model/cosyvoice_train/CosyVoice
 #
+# Usage:
+#   bash phase4_train_llm.sh [data_dir] [max_epoch] [lora_rank]
+#
+# Examples:
+#   bash phase4_train_llm.sh                                    # All defaults
+#   bash phase4_train_llm.sh /path/to/data 50                   # Custom data and epoch
+#   bash phase4_train_llm.sh /path/to/data 50 16                # Custom data, epoch, and r=16
+#
 # Prerequisites:
 #   - Phase 1 (code patches) completed
 #   - Phase 3 (data preparation) completed
@@ -20,6 +28,7 @@ set -e
 COSYVOICE_DIR="/home/mind/model/cosyvoice_train/CosyVoice"
 DATA_DIR="${1:-/home/mind/model/cosyvoice_train/data/sft_test}"
 MAX_EPOCH="${2:-2}"
+LORA_RANK="${3:-8}"
 PRETRAINED="${COSYVOICE_DIR}/pretrained_models/CosyVoice2-0.5B"
 EXP_DIR="/home/mind/model/cosyvoice_train/exp/cosyvoice2/llm_lora"
 
@@ -29,6 +38,7 @@ echo "============================================================"
 echo ""
 echo "  Data directory: $DATA_DIR"
 echo "  Max epochs: $MAX_EPOCH"
+echo "  LoRA rank: r=$LORA_RANK"
 echo ""
 
 # --- Verify prerequisites ---
@@ -110,6 +120,7 @@ echo "  Model: llm (Qwen2 with LoRA)"
 echo "  Checkpoint: $PRETRAINED/llm.pt"
 echo "  Config: examples/libritts/cosyvoice2/conf/cosyvoice2.yaml"
 echo "  Max epochs: $MAX_EPOCH"
+echo "  LoRA rank: r=$LORA_RANK"
 echo "  Learning rate: 1e-5"
 echo "  Scheduler: constantlr"
 echo "  Backend: hccl (Ascend NPU)"

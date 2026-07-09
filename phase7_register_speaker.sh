@@ -4,12 +4,21 @@
 #
 # Run from: 训练容器B (/home/mind/model/cosyvoice_train/CosyVoice)
 #
-# Default behavior (no arguments):
-#   - Uses test.wav from Phase 2 as reference audio
-#   - Registers speaker as "spk001" (matching Phase 2's utt2spk)
+# Usage:
+#   bash phase7_register_speaker.sh [speaker_name] [wav_dir_or_files...] [-n num_samples]
 #
-# Custom usage:
-#   bash phase7_register_speaker.sh "金牌客服" /path/to/ref1.wav [/path/to/ref2.wav ...]
+# Examples:
+#   # Directory mode (default 10 random samples)
+#   bash phase7_register_speaker.sh SSB0671 /path/to/wav_dir
+#
+#   # Directory mode with 20 random samples
+#   bash phase7_register_speaker.sh SSB0671 /path/to/wav_dir -n 20
+#
+#   # Individual files mode
+#   bash phase7_register_speaker.sh SSB0671 /path/to/ref1.wav /path/to/ref2.wav
+#
+#   # Default mode (uses test.wav from Phase 2)
+#   bash phase7_register_speaker.sh
 # =============================================================================
 
 set -e
@@ -19,21 +28,54 @@ SPK2INFO="$MODEL_DIR/spk2info.pt"
 CAMPPLUS="$MODEL_DIR/campplus.onnx"
 DEFAULT_AUDIO="/home/mind/model/cosyvoice_train/data/sft_test/test.wav"
 DEFAULT_SPEAKER="spk001"
+DEFAULT_NUM_SAMPLES=10
 
-# --- Parse arguments or use defaults ---
-if [ $# -ge 2 ]; then
-    SPEAKER_NAME="$1"
-    shift
-    AUDIO_FILES=("$@")
-elif [ $# -eq 0 ]; then
+# --- Parse arguments ---
+SPEAKER_NAME=""
+WAV_SOURCE=""
+NUM_SAMPLES=$DEFAULT_NUM_SAMPLES
+AUDIO_FILES=()
+
+if [ $# -eq 0 ]; then
+    # Default mode
     SPEAKER_NAME="$DEFAULT_SPEAKER"
     AUDIO_FILES=("$DEFAULT_AUDIO")
-else
-    echo "Usage: bash phase7_register_speaker.sh [speaker_name audio_file1 [audio_file2 ...]]"
-    echo ""
-    echo "  No arguments: uses test.wav + speaker name 'spk001'"
-    echo "  With arguments: bash phase7_register_speaker.sh '金牌客服' /path/to/ref.wav"
-    exit 1
+elif [ $# -ge 1 ]; then
+    SPEAKER_NAME="$1"
+    shift
+    
+    # Check if first argument is a directory
+    if [ -d "$1" ]; then
+        WAV_SOURCE="$1"
+        shift
+        
+        # Parse optional -n flag
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -n)
+                    NUM_SAMPLES="$2"
+                    shift 2
+                    ;;
+                *)
+                    shift
+                    ;;
+            esac
+        done
+    else
+        # Individual files mode
+        while [ $# -gt 0 ]; do
+            case "$1" in
+                -n)
+                    NUM_SAMPLES="$2"
+                    shift 2
+                    ;;
+                *)
+                    AUDIO_FILES+=("$1")
+                    shift
+                    ;;
+            esac
+        done
+    fi
 fi
 
 echo "============================================================"
@@ -41,8 +83,38 @@ echo "  Phase 7: Register Speaker to spk2info.pt"
 echo "============================================================"
 echo ""
 echo "  Speaker name: $SPEAKER_NAME"
-echo "  Audio files:  ${AUDIO_FILES[@]}"
-echo ""
+
+# --- If directory mode, select random samples ---
+if [ -n "$WAV_SOURCE" ]; then
+    echo "  Source directory: $WAV_SOURCE"
+    echo "  Number of samples: $NUM_SAMPLES"
+    
+    # Find all wav files
+    ALL_WAVS=($(find "$WAV_SOURCE" -name "*.wav" -type f | sort))
+    TOTAL_WAVS=${#ALL_WAVS[@]}
+    
+    if [ $TOTAL_WAVS -eq 0 ]; then
+        echo "ERROR: No wav files found in $WAV_SOURCE"
+        exit 1
+    fi
+    
+    echo "  Total wav files: $TOTAL_WAVS"
+    
+    # Select random samples
+    if [ $NUM_SAMPLES -ge $TOTAL_WAVS ]; then
+        echo "  Using all $TOTAL_WAVS files (requested $NUM_SAMPLES)"
+        AUDIO_FILES=("${ALL_WAVS[@]}")
+    else
+        echo "  Selecting $NUM_SAMPLES random samples..."
+        # Use shuf to randomly select
+        SELECTED=$(printf '%s\n' "${ALL_WAVS[@]}" | shuf -n $NUM_SAMPLES)
+        AUDIO_FILES=($SELECTED)
+    fi
+    echo ""
+else
+    echo "  Audio files: ${#AUDIO_FILES[@]}"
+    echo ""
+fi
 
 # --- Verify prerequisites ---
 if [ ! -f "$SPK2INFO" ]; then
@@ -62,8 +134,8 @@ for f in "${AUDIO_FILES[@]}"; do
         echo "ERROR: Audio file not found: $f"
         exit 1
     fi
-    echo "  OK: $f ($(ls -lh "$f" | awk '{print $5}'))"
 done
+echo "  OK: ${#AUDIO_FILES[@]} audio files verified"
 echo ""
 
 # --- Extract embedding and register ---
