@@ -86,13 +86,16 @@ with open(filepath, "r") as f:
 original = content
 changes = []
 
-# Patch 1: NPU imports at the very top
-npu_imports = """import torch_npu
-from torch_npu.contrib import transfer_to_npu
-
-"""
+# Patch 1: NPU imports after __future__ imports
+npu_imports = "import torch_npu\nfrom torch_npu.contrib import transfer_to_npu\n"
 if "import torch_npu" not in content:
-    content = npu_imports + content
+    lines = content.split('\n')
+    insert_idx = 0
+    for i, line in enumerate(lines):
+        if line.strip().startswith('from __future__'):
+            insert_idx = i + 1
+    lines.insert(insert_idx, npu_imports)
+    content = '\n'.join(lines)
     changes.append("Added torch_npu + transfer_to_npu imports")
 
 # Patch 2: Make deepspeed optional
