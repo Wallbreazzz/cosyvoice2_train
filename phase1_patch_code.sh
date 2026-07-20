@@ -196,7 +196,19 @@ else:
     print("  SKIP: All patches already applied")
 PATCH_TRAIN_PY
 
-sed -i "s/r=\$LORA_RANK/r=$LORA_RANK/" cosyvoice/bin/train.py
+python3 -c "
+p='cosyvoice/bin/train.py'
+with open(p) as f: c=f.read()
+c2=c.replace('r=\$LORA_RANK', 'r=$LORA_RANK')
+if c2!=c:
+    with open(p,'w') as f: f.write(c2)
+    print('  LoRA rank set to r=$LORA_RANK in train.py')
+else:
+    print('  WARN: literal \$LORA_RANK not found in train.py')
+import re
+m=re.search(r'LoraConfig.*?r=(\d+)', c2, re.DOTALL)
+if m: print(f'  Verify: r={m.group(1)}')
+"
 
 echo ""
 
