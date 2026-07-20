@@ -55,7 +55,7 @@ echo "[2/5] Merging LoRA weights into base model..."
 
 source /usr/local/Ascend/ascend-toolkit/set_env.sh 2>/dev/null || true
 
-python3 << 'MERGE_LORA_PY'
+python3 << MERGE_LORA_PY
 import torch
 from peft import LoraConfig, get_peft_model
 from transformers import Qwen2ForCausalLM

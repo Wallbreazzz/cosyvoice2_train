@@ -44,6 +44,10 @@ fi
 
 cd "$COSYVOICE_DIR"
 
+echo "[0] Restoring source files to original state..."
+git restore . 2>/dev/null && echo "  OK: git restore complete" || echo "  WARN: git restore skipped (not a git repo or no changes)"
+echo ""
+
 # =============================================================================
 # Verify prerequisites (xunyi training recipe, pre-baked in image)
 # =============================================================================
@@ -191,6 +195,8 @@ if content != original:
 else:
     print("  SKIP: All patches already applied")
 PATCH_TRAIN_PY
+
+sed -i "s/r=\$LORA_RANK/r=$LORA_RANK/" cosyvoice/bin/train.py
 
 echo ""
 
